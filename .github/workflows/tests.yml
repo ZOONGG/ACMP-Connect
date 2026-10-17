@@ -1,0 +1,35 @@
+name: Tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t acmp-connect:test .
+      - name: Verify startup, health and OAuth challenge
+        run: |
+          KEY=$(docker run --rm --entrypoint python acmp-connect:test -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')
+          docker run -d --name acmp-test -p 8000:8000 -e PUBLIC_URL=https://acmp.example.com -e OAUTH_ISSUER=https://issuer.example.com/ -e OAUTH_JWKS_URL=https://issuer.example.com/jwks -e SESSION_ENCRYPTION_KEY="$KEY" acmp-connect:test
+          for attempt in $(seq 1 30); do
+            if curl -fsS -H 'Host: acmp.example.com' http://127.0.0.1:8000/healthz; then break; fi
+            sleep 1
+          done
+          curl -fsS -H 'Host: acmp.example.com' http://127.0.0.1:8000/healthz
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Host: acmp.example.com' http://127.0.0.1:8000/mcp)
+          test "$CODE" = 401
+      - if: always()
+        run: docker logs acmp-test && docker rm -f acmp-test

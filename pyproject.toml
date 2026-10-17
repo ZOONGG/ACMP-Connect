@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "acmp-connect"
+version = "0.2.0"
+description = "Multi-user ACMP integration for ChatGPT via MCP"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["mcp>=1.30,<2", "cryptography>=46,<51", "beautifulsoup4>=4.14,<5", "PyJWT[crypto]>=2.10,<3", "httpx>=0.28,<1", "uvicorn>=0.35,<1"]
+license = {file = "LICENSE"}
+
+[project.scripts]
+acmp-connect = "acmp_connect.cli:main"
+acmp-server = "acmp_connect.mcp_server:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["acmp_connect*"]
