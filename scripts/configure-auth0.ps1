@@ -2,7 +2,8 @@ param(
     [string]$Tenant = 'dev-7hq02dz6g07g73nf.us.auth0.com',
     [string]$Origin,
     [string]$ChatGPTCallback,
-    [string[]]$AllowedUserIds
+    [string[]]$AllowedUserIds,
+    [switch]$AllowlistOnly
 )
 $ErrorActionPreference = 'Stop'
 $cli = (Get-Command auth0 -ErrorAction SilentlyContinue).Source
@@ -15,6 +16,57 @@ function Api([string]$Method, [string]$Path, $Body = $null) {
     } else { $raw = & $cli @cliArgs }
     if ($LASTEXITCODE -ne 0) { throw "Auth0 request failed: $Method $Path (response suppressed)" }
     if ($raw) { return ($raw | ConvertFrom-Json -Depth 60) }
+}
+if ($AllowlistOnly) {
+    if ($Origin -or $ChatGPTCallback -or @($AllowedUserIds).Count -ne 1 -or
+        $AllowedUserIds[0] -notmatch '^auth0\|[^\s,]+$') {
+        throw 'AllowlistOnly requires exactly one database user ID and no application changes.'
+    }
+    $existing = @((Api get 'actions/actions?per_page=100').actions |
+        Where-Object name -eq 'ACMP Connect Private Login')
+    if ($existing.Count -ne 1) { throw 'Expected one existing private login Action.' }
+    $actionId = $existing[0].id
+    $current = Api get "actions/actions/$actionId"
+    $bindings = Api get 'actions/triggers/post-login/bindings'
+    if (!$current.deployed_version -or $actionId -notin $bindings.bindings.action.id) {
+        throw 'Existing private Action must already be deployed and bound.'
+    }
+    $databases = @(Api get 'connections?per_page=100' |
+        Where-Object { $_.name -eq 'Username-Password-Authentication' -and $_.strategy -eq 'auth0' })
+    if ($databases.Count -ne 1 -or !$databases[0].options.disable_signup) {
+        throw 'Expected database connection with signup already disabled.'
+    }
+    $user = Api get ('users/' + [uri]::EscapeDataString($AllowedUserIds[0]))
+    if ($user.blocked -or @($user.identities.connection) -notcontains 'Username-Password-Authentication') {
+        throw 'Expected an unblocked user in the private database connection.'
+    }
+    $secretNames = @($current.secrets.name)
+    foreach ($required in @('CHATGPT_CLIENT_ID', 'PORTAL_CLIENT_ID', 'ALLOWED_USER_IDS')) {
+        if ($required -notin $secretNames) { throw 'Existing Action secrets are incomplete.' }
+    }
+    # A name without a value preserves that secret, per the Management API contract.
+    $secrets = @($current.secrets | ForEach-Object {
+        if ($_.name -eq 'ALLOWED_USER_IDS') {
+            @{name=$_.name; value=(ConvertTo-Json -InputObject @($AllowedUserIds) -Compress)}
+        } else { @{name=$_.name} }
+    })
+    $null = Api patch "actions/actions/$actionId" @{secrets=$secrets}
+    for ($attempt=0; $attempt -lt 15; $attempt++) {
+        $updated = Api get "actions/actions/$actionId"
+        if ($updated.status -eq 'built') { break }
+        if ($updated.status -eq 'failed') { throw 'Action build failed.' }
+        Start-Sleep -Seconds 2
+    }
+    if ($updated.status -ne 'built') { throw 'Action build timed out.' }
+    $deployed = Api post "actions/actions/$actionId/deploy" @{}
+    $verified = Api get "actions/actions/$actionId"
+    $bindings = Api get 'actions/triggers/post-login/bindings'
+    $db = Api get "connections/$($databases[0].id)"
+    if (!$verified.deployed_version -or $verified.deployed_version.id -ne $deployed.id -or
+        $actionId -notin $bindings.bindings.action.id -or !$db.options.disable_signup -or
+        $verified.code -cne $current.code) { throw 'Private Action verification failed.' }
+    Write-Output 'Verified: singleton allowlist update accepted, deployed and bound; signup disabled.'
+    return
 }
 if ($Origin) {
     $uri = [uri]$Origin
