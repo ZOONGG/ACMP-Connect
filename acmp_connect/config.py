@@ -1,7 +1,9 @@
 """Validated deployment configuration. Production never falls back to no auth."""
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlsplit
+from dotenv import load_dotenv
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,8 @@ class Settings:
 
     @classmethod
     def from_env(cls):
+        # Only use the launch directory's private file; hosting variables win.
+        load_dotenv(dotenv_path=Path.cwd() / '.env', override=False, interpolate=False)
         return cls(public_url=os.getenv('PUBLIC_URL', ''), issuer=os.getenv('OAUTH_ISSUER', ''),
                    jwks_url=os.getenv('OAUTH_JWKS_URL', ''), encryption_key=os.getenv('SESSION_ENCRYPTION_KEY', ''),
                    database=os.getenv('DATABASE_PATH', 'data/acmp.sqlite3'),

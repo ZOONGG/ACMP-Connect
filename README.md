@@ -32,15 +32,15 @@ python -m pip install -e '.[dev]'
 python -m pytest -q
 ```
 
-Copy `.env.example` to a private `.env`, fill the OAuth and encryption settings according to [AUTH.md](docs/AUTH.md), and load it into the process environment. Never commit `.env`.
+Copy `.env.example` to a private `.env` and fill the OAuth and encryption settings according to [AUTH.md](docs/AUTH.md). Never commit `.env`. Start from the project directory: the server loads `.env` from the current working directory, preserving any variables already set in the process environment.
 
 ```sh
-python -m dotenv -f .env run -- acmp-server
+acmp-server
 ```
 
 Alternatively use `docker compose up --build` after configuring `.env`. The server fails closed if its mandatory configuration is missing. `ACMP_DEV=1` permits HTTP only for loopback URLs, binds the direct Python server to loopback, and relaxes cookie Secure flags for local development; it does **not** disable authentication. Leave it at `0` for hosting.
 
-For a dotenv installation without its optional CLI, set variables using your shell or run `python -m pip install 'python-dotenv[cli]'`. Docker Compose reads `.env` directly.
+`python -m acmp_connect.mcp_server` uses the same loading behavior. Docker Compose reads `.env` directly. Until the actual HTTPS origin is known, keep `PUBLIC_URL` empty; startup will reject the incomplete configuration.
 
 ## CLI
 

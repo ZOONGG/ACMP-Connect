@@ -1,4 +1,5 @@
 .git/
+.config/auth0/
 .github/
 .venv/
 .env
