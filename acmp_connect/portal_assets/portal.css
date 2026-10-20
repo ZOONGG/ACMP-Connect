@@ -508,7 +508,7 @@ input:not([type=hidden]):not([type=checkbox]) {
   transition:border-color .18s;
 }
 input::placeholder { color:#7e8d9e; opacity:1 }
-input:focus { border-color:var(--cyan); outline:2px solid #80f3e526; outline-offset:2px }
+input:not([type=checkbox]):focus { border-color:var(--cyan); outline:2px solid #80f3e526; outline-offset:2px }
 #login { margin-bottom:22px }
 /* Separate selectors keep vendor-specific autofill rules valid in both engines. */
 input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
@@ -521,9 +521,9 @@ input:-moz-autofill { background:#0c121a; color:#f0f5fa; box-shadow:0 0 0 1000px
 .password-field input { padding-right:96px!important }
 .reveal { position:absolute; right:6px; top:3px; height:44px; min-width:80px; border:0; border-radius:5px; background:transparent; color:#afc7d5; font-size:11px }
 .privacy { margin:16px 0 24px; color:#92a3b5; font-size:11px; line-height:1.7 }
-.button { width:100%; min-height:50px; padding:13px 16px; border:1px solid transparent; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; transition:background .18s,box-shadow .18s; line-height:1.5 }
-.primary { color:#09202a; background:linear-gradient(105deg,#96eee3,#83cbf3) }
-.primary:hover { background:#adf2ec; box-shadow:0 0 22px #80f3e512 }
+.button { width:100%; min-height:50px; padding:13px 16px; border:1px solid transparent; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; transition:filter .18s,box-shadow .18s; line-height:1.5 }
+.primary { color:#09202a; background-color:#96eee3; background-image:linear-gradient(105deg,#96eee3,#83cbf3) }
+.primary:hover { filter:brightness(1.08); box-shadow:0 0 22px #80f3e512 }
 .button:active { filter:brightness(.94) }
 .button:disabled { cursor:wait; opacity:.65 }
 .secondary { background:transparent; border-color:#364250; color:var(--text) }
@@ -535,6 +535,7 @@ dialog { width:min(440px,calc(100% - 32px)); max-height:calc(100svh - 32px); pad
 dialog::backdrop { background:#05090dcc }
 dialog h2 { font-size:25px; margin-bottom:18px }
 .checkbox { display:flex; align-items:flex-start; gap:10px; font-size:12px; line-height:1.7; margin-bottom:24px }
+.checkbox input:focus:not(:focus-visible) { outline:none; box-shadow:none }
 .checkbox input { width:18px; height:18px; accent-color:var(--cyan); flex-shrink:0 }
 .dialog-actions { display:flex; gap:12px }
 @keyframes fade-in { from { opacity:.4 } to { opacity:1 } }
