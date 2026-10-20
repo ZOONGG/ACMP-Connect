@@ -34,6 +34,7 @@ def provider(settings):
             context['form'] = form
             now = int(time.time())
             claims = {'iss':context['issuer'],'sub':'identity-1','aud':'portal','iat':now,'exp':now+300,'nonce':context['nonce']}
+            claims.update(context.get('claims', {}))
             token = jwt.encode(claims,private_key,algorithm='RS256',headers={'kid':'test-key'})
             body = json.dumps({'id_token':token,'access_token':'unused'}).encode()
             self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(body)
@@ -145,6 +146,53 @@ def test_oidc_portal_end_to_end_with_mock_provider(settings):
             assert response.status_code == 200
             assert app.state.storage.read_ticket(session.get('token',''),'portal') is None
             assert client.get('/connect').status_code == 200
+
+
+@pytest.mark.parametrize('changes,category', [
+    ({'aud': 'wrong-private-audience'}, 'invalid_audience'),
+    ({'iss': 'https://wrong-private-issuer/'}, 'invalid_issuer'),
+    ({'exp': 1}, 'expired_token'),
+])
+def test_portal_jwt_failure_diagnostics(settings, caplog, changes, category):
+    with provider(settings) as (s, _, context):
+        app = create_app(s, client_factory=FakeClient)
+        with TestClient(app, base_url=s.public_url) as client:
+            response = client.get('/connect/login', follow_redirects=False)
+            query = parse_qs(urlsplit(response.headers['location']).query)
+            context.update(nonce=query['nonce'][0], claims=changes)
+            caplog.clear()
+            response = client.get('/connect/callback', params={
+                'state': query['state'][0], 'code': 'private-authorization-code'}, follow_redirects=False)
+            assert response.status_code == 400
+            assert 'acmp_portal' not in client.cookies
+            records = [r for r in caplog.records if r.name == 'acmp_connect.portal']
+            assert [r.getMessage() for r in records] == [
+                f'portal_callback stage=id_token category={category}']
+            assert all(not r.exc_info for r in records)
+
+
+@pytest.mark.parametrize('changes,stage,category', [
+    ({'nonce': 'private-wrong-nonce'}, 'nonce', 'invalid_value'),
+    ({'nonce': None}, 'nonce', 'invalid_type'),
+    ({'azp': 'private-wrong-party'}, 'authorized_party', 'invalid_value'),
+    ({'azp': None}, 'authorized_party', 'invalid_value'),
+])
+def test_portal_nonce_and_party_failure_diagnostics(settings, caplog, changes, stage, category):
+    with provider(settings) as (s, _, context):
+        app = create_app(s, client_factory=FakeClient)
+        with TestClient(app, base_url=s.public_url) as client:
+            response = client.get('/connect/login', follow_redirects=False)
+            query = parse_qs(urlsplit(response.headers['location']).query)
+            context.update(nonce=query['nonce'][0], claims=changes)
+            caplog.clear()
+            response = client.get('/connect/callback', params={
+                'state': query['state'][0], 'code': 'private-authorization-code'}, follow_redirects=False)
+            assert response.status_code == 400
+            assert 'acmp_portal' not in client.cookies
+            records = [r for r in caplog.records if r.name == 'acmp_connect.portal']
+            assert [r.getMessage() for r in records] == [
+                f'portal_callback stage={stage} category={category}']
+            assert all(not r.exc_info for r in records)
 
 @pytest.mark.asyncio
 async def test_official_mcp_client_over_real_http(settings):

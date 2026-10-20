@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import html
+import logging
 import secrets
 import urllib.parse
 import httpx
@@ -15,6 +16,32 @@ from .client import ACMPError
 
 COOKIE = 'acmp_portal'
 LOGIN_COOKIE = 'acmp_login'
+logger = logging.getLogger(__name__)
+
+
+def callback_error(stage, exc):
+    # Use only fixed categories: exception messages can contain tokens or claims.
+    categories = (
+        (jwt.InvalidSignatureError, 'invalid_signature'),
+        (jwt.InvalidAudienceError, 'invalid_audience'),
+        (jwt.InvalidIssuerError, 'invalid_issuer'),
+        (jwt.ExpiredSignatureError, 'expired_token'),
+        (jwt.ImmatureSignatureError, 'immature_token'),
+        (jwt.InvalidIssuedAtError, 'invalid_issued_at'),
+        (jwt.MissingRequiredClaimError, 'missing_claim'),
+        (jwt.InvalidAlgorithmError, 'invalid_algorithm'),
+        (jwt.PyJWKClientConnectionError, 'jwks_connection'),
+        (jwt.PyJWKClientError, 'jwks_key'),
+        (jwt.PyJWTError, 'invalid_jwt'),
+        (httpx.HTTPStatusError, 'http_status'),
+        (httpx.HTTPError, 'http_transport'),
+        (KeyError, 'missing_field'),
+        (TypeError, 'invalid_type'),
+        (ValueError, 'invalid_value'),
+        (OSError, 'io_error'),
+    )
+    category = next((label for kind, label in categories if isinstance(exc, kind)), 'verification_failed')
+    logger.warning('portal_callback stage=%s category=%s', stage, category)
 
 
 def page(body, status=200):
@@ -76,31 +103,41 @@ class Portal:
         state = self.storage.read_ticket(request.query_params.get('state', ''), 'oidc', consume=True)
         binding = hashlib.sha256(request.cookies.get(LOGIN_COOKIE, '').encode()).hexdigest()
         if not state or not hmac.compare_digest(binding, state['binding']) or not request.query_params.get('code'):
+            logger.warning('portal_callback stage=state category=invalid_sign_in')
             return page('<p>Invalid or expired sign-in. Start again.</p>', 400)
         s = self.settings
         if request.query_params.get('iss', s.issuer) != s.issuer:
+            logger.warning('portal_callback stage=response_issuer category=invalid_issuer')
             return page('<p>Unexpected identity issuer.</p>', 400)
         form = {'grant_type': 'authorization_code', 'code': request.query_params['code'],
                 'redirect_uri': s.public_url + '/connect/callback', 'client_id': s.portal_client_id,
                 'code_verifier': state['verifier']}
         if s.portal_client_secret:
             form['client_secret'] = s.portal_client_secret
+        stage = 'token_exchange'
         try:
             async with httpx.AsyncClient(timeout=15, follow_redirects=False) as client:
                 response = await client.post(s.token_endpoint, data=form)
                 response.raise_for_status()
-                claims = await asyncio.to_thread(self.verifier.decode, response.json()['id_token'], s.portal_client_id)
+                stage = 'token_response'
+                id_token = response.json()['id_token']
+                stage = 'id_token'
+                claims = await asyncio.to_thread(self.verifier.decode, id_token, s.portal_client_id)
+            stage = 'nonce'
             if not hmac.compare_digest(claims.get('nonce', ''), state['nonce']):
                 raise ValueError('nonce mismatch')
+            stage = 'authorized_party'
             if claims.get('azp', s.portal_client_id) != s.portal_client_id:
                 raise ValueError('authorized party mismatch')
-        except (httpx.HTTPError, jwt.PyJWTError, KeyError, ValueError, TypeError, OSError):
+        except (httpx.HTTPError, jwt.PyJWTError, KeyError, ValueError, TypeError, OSError) as exc:
+            callback_error(stage, exc)
             return page('<p>Identity verification failed. Start sign-in again.</p>', 400)
         subject = subject_key(s.issuer, claims['sub'])
         token = self.storage.ticket('portal', {'subject': subject, 'csrf': secrets.token_urlsafe(32)}, ttl=1800)
         response = RedirectResponse('/connect', status_code=303)
         self.cookie(response, COOKIE, token, 1800)
         response.delete_cookie(LOGIN_COOKIE, path='/connect')
+        logger.info('portal_callback stage=complete category=success')
         return response
 
     async def mutate(self, request):
