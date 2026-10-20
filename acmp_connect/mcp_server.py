@@ -50,7 +50,7 @@ class SecurityHeaders:
                 referrer_policy = b'same-origin' if scope['path'] == '/connect' else b'no-referrer'
                 message['headers'] += [(b'cache-control', b'no-store'), (b'x-content-type-options', b'nosniff'),
                                        (b'referrer-policy', referrer_policy), (b'x-frame-options', b'DENY'),
-                                       (b'content-security-policy', b"default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"),
+                                       (b'content-security-policy', b"default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"),
                                        (b'strict-transport-security', b'max-age=31536000')]
             await send(message)
         await self.app(scope, bounded_receive, safe_send)

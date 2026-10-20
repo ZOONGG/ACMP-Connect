@@ -3,14 +3,16 @@ import asyncio
 import base64
 import hashlib
 import hmac
-import html
+from pathlib import Path
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 import logging
 import secrets
 import urllib.parse
 import httpx
 import jwt
-from starlette.responses import HTMLResponse, RedirectResponse, PlainTextResponse
-from starlette.routing import Route
+from starlette.responses import HTMLResponse, RedirectResponse
+from starlette.routing import Route, Mount
+from starlette.staticfiles import StaticFiles
 from .auth import subject_key
 from .client import ACMPError
 
@@ -44,10 +46,14 @@ def callback_error(stage, exc):
     logger.warning('portal_callback stage=%s category=%s', stage, category)
 
 
-def page(body, status=200):
-    return HTMLResponse('<!doctype html><html lang="en"><meta charset="utf-8">'
-                        '<meta name="viewport" content="width=device-width"><title>ACMP Connect</title>'
-                        '<body><main><h1>ACMP Connect</h1>' + body + '</main></body></html>', status_code=status)
+ASSETS = Path(__file__).parent / 'portal_assets'
+TEMPLATES = Environment(loader=FileSystemLoader(Path(__file__).parent / 'templates'),
+                        autoescape=select_autoescape(['html']))
+
+
+def page(message='', status=200, **context):
+    return HTMLResponse(TEMPLATES.get_template('portal.html').render(
+        message=message, error=status >= 400, **context), status_code=status)
 
 
 class Portal:
@@ -64,29 +70,19 @@ class Portal:
     async def connect(self, request):
         session = self.session(request)
         if not session:
-            return page('<p>Sign in with the same identity you use for this plugin in ChatGPT.</p>'
-                        '<a href="/connect/login">Sign in securely</a>')
+            return page(view='welcome')
         status = await asyncio.to_thread(self.service.account_status, session['subject'])
-        label = ('Connected to ACMP user ' + str(status['acmp_user_id'])) if status['connected'] else 'ACMP account not connected'
-        csrf = html.escape(session['csrf'], quote=True)
-        return page(f'<p>{label}</p><p>Enter your acmp.ru credentials here only. Your password is sent to acmp.ru over HTTPS and is never saved.</p>'
-                    f'<form method="post" action="/connect/account"><input type="hidden" name="csrf" value="{csrf}">'
-                    '<label>ACMP login <input name="login" maxlength="128" autocomplete="username" required></label><br>'
-                    '<label>ACMP password <input type="password" name="password" maxlength="512" autocomplete="current-password" required></label><br>'
-                    '<button>Connect ACMP account</button></form>'
-                    f'<form method="post" action="/connect/disconnect"><input type="hidden" name="csrf" value="{csrf}"><button>Disconnect account</button></form>'
-                    f'<form method="post" action="/connect/delete"><input type="hidden" name="csrf" value="{csrf}"><button>Delete all my stored data</button></form>'
-                    '<p>Disconnection does not delete submissions from acmp.ru. CAPTCHA is never bypassed.</p>')
+        return page(view='account', account=status, csrf=session['csrf'])
 
     async def login(self, request):
         s = self.settings
         if not all([s.portal_client_id, s.authorization_endpoint, s.token_endpoint]):
-            return page('<p>Operator must configure the OIDC portal client before linking accounts.</p>', 503)
+            return page('Вход временно недоступен. Попробуйте позже.', 503)
         ip = request.client.host if request.client else 'unknown'
         try:
             self.storage.rate('oidc:' + ip, maximum=20, window=300)
         except ACMPError:
-            return page('<p>Too many attempts. Try later.</p>', 429)
+            return page('Слишком много попыток входа. Подождите несколько минут.', 429)
         binding, verifier, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(48), secrets.token_urlsafe(32)
         state = self.storage.ticket('oidc', {'binding': hashlib.sha256(binding.encode()).hexdigest(),
                                            'verifier': verifier, 'nonce': nonce}, ttl=600)
@@ -104,11 +100,11 @@ class Portal:
         binding = hashlib.sha256(request.cookies.get(LOGIN_COOKIE, '').encode()).hexdigest()
         if not state or not hmac.compare_digest(binding, state['binding']) or not request.query_params.get('code'):
             logger.warning('portal_callback stage=state category=invalid_sign_in')
-            return page('<p>Invalid or expired sign-in. Start again.</p>', 400)
+            return page('Ссылка входа истекла или уже использована. Начните вход заново.', 400)
         s = self.settings
         if request.query_params.get('iss', s.issuer) != s.issuer:
             logger.warning('portal_callback stage=response_issuer category=invalid_issuer')
-            return page('<p>Unexpected identity issuer.</p>', 400)
+            return page('Не удалось подтвердить источник авторизации. Повторите безопасный вход.', 400)
         form = {'grant_type': 'authorization_code', 'code': request.query_params['code'],
                 'redirect_uri': s.public_url + '/connect/callback', 'client_id': s.portal_client_id,
                 'code_verifier': state['verifier']}
@@ -131,7 +127,7 @@ class Portal:
                 raise ValueError('authorized party mismatch')
         except (httpx.HTTPError, jwt.PyJWTError, KeyError, ValueError, TypeError, OSError) as exc:
             callback_error(stage, exc)
-            return page('<p>Identity verification failed. Start sign-in again.</p>', 400)
+            return page('Не удалось подтвердить вашу личность. Повторите вход через Auth0.', 400)
         subject = subject_key(s.issuer, claims['sub'])
         token = self.storage.ticket('portal', {'subject': subject, 'csrf': secrets.token_urlsafe(32)}, ttl=1800)
         response = RedirectResponse('/connect', status_code=303)
@@ -143,7 +139,7 @@ class Portal:
     async def mutate(self, request):
         session = self.session(request)
         if not session:
-            return page('<p>Sign in first.</p>', 401)
+            return page('Сессия истекла. Войдите снова, чтобы продолжить.', 401)
         if request.headers.get('origin') != self.settings.public_url:
             referer = request.headers.get('referer', '')
             try:
@@ -156,10 +152,10 @@ class Portal:
                 'referer_present=%s referer_matches=%s fetch_site_present=%s fetch_site_same_origin=%s',
                 'origin' in request.headers, False, 'referer' in request.headers, referer_matches,
                 'sec-fetch-site' in request.headers, request.headers.get('sec-fetch-site') == 'same-origin')
-            return page('<p>Origin check failed.</p>', 403)
+            return page('Origin check failed. Откройте портал заново и повторите действие.', 403, retry='/connect')
         form = await request.form(max_fields=5, max_files=0, max_part_size=8192)
         if not hmac.compare_digest(str(form.get('csrf', '')), session['csrf']):
-            return page('<p>CSRF check failed.</p>', 403)
+            return page('CSRF check failed. Обновите страницу перед повторной попыткой.', 403, retry='/connect')
         try:
             if request.url.path == '/connect/account':
                 await asyncio.to_thread(self.service.connect, session['subject'], str(form.get('login', '')), str(form.get('password', '')))
@@ -167,14 +163,19 @@ class Portal:
                 delete = request.url.path == '/connect/delete'
                 await asyncio.to_thread(self.storage.disconnect, session['subject'], delete)
                 if delete:
-                    response = page('<p>Your ACMP session and local records have been deleted. You can revoke the plugin at your identity provider and in ChatGPT.</p>')
+                    response = page('Сессия ACMP и локальные записи удалены. Доступ плагина можно также отозвать в ChatGPT и у провайдера авторизации.', view='deleted')
                     response.delete_cookie(COOKIE, path='/connect')
                     return response
         except ACMPError as exc:
-            return page('<p>' + html.escape(str(exc)) + '</p><a href="/connect">Return</a>', 400)
+            message = 'Не удалось подключить аккаунт. Проверьте данные и повторите попытку.'
+            if 'CAPTCHA' in str(exc):
+                message = 'acmp.ru запросил CAPTCHA. Пройдите проверку на acmp.ru и повторите подключение.'
+            elif 'сети' in str(exc) or 'HTTP' in str(exc):
+                message = 'acmp.ru временно недоступен. Попробуйте подключиться позже.'
+            return page(message, 400, retry='/connect')
         return RedirectResponse('/connect', status_code=303)
 
     def routes(self):
-        return [Route('/connect', self.connect), Route('/connect/login', self.login),
+        return [Mount('/connect/assets', app=StaticFiles(directory=ASSETS)), Route('/connect', self.connect), Route('/connect/login', self.login),
                 Route('/connect/callback', self.callback),
                 *[Route('/connect/' + p, self.mutate, methods=['POST']) for p in ['account', 'disconnect', 'delete']]]
