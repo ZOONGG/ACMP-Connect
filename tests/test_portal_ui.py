@@ -32,15 +32,21 @@ def test_account_states_and_confirmations(portal, connected):
     response = client.get('/connect')
     soup = BeautifulSoup(response.text, 'html.parser')
     account = soup.select_one('form[action="/connect/account"]')
-    assert account.select_one('[name="csrf"]')['value'] == 'private-csrf'
-    assert account.select_one('[name="password"]')['type'] == 'password'
-    assert account.select_one('[name="password"]').get('value') is None
-    for name in ('login', 'password'):
-        assert soup.select_one(f'label[for="{name}"]')
-    for path in ('disconnect', 'delete'):
-        form = soup.select_one(f'form[action="/connect/{path}"]')
-        assert form.select_one('details.confirm button[type="submit"]')
-    assert soup.select_one('[name="confirm_delete"][required]')
+    assert not soup.select('details, .steps, .state-icon, .account-card')
+    if connected:
+        assert account is None
+        disconnect = soup.select_one('form[action="/connect/disconnect"]')
+        assert disconnect.select_one('[name="csrf"]')['value'] == 'private-csrf'
+        assert disconnect.button.text == 'Выйти'
+        assert 'Аккаунт подключён' in response.text
+    else:
+        assert account.select_one('[name="csrf"]')['value'] == 'private-csrf'
+        assert account.select_one('[name="password"]')['type'] == 'password'
+        assert account.select_one('[name="password"]').get('value') is None
+        for name in ('login', 'password'):
+            assert soup.select_one(f'label[for="{name}"]')
+        assert not soup.select_one('form[action="/connect/disconnect"]')
+    assert soup.select_one('dialog form[action="/connect/delete"] [name="confirm_delete"][required]')
     assert ('Пользователь #42' in response.text) == connected
 
 
@@ -81,3 +87,16 @@ def test_expired_sign_in_has_readable_retry(portal):
     assert response.status_code == 400
     assert 'Ссылка входа истекла' in response.text
     assert 'href="/connect/login"' in response.text
+
+
+def test_disconnect_keeps_portal_session_and_returns_connection_form(portal):
+    client, app = portal
+    from acmp_connect.portal import COOKIE
+    ticket = client.cookies[COOKIE]
+    app.state.service.account_status = Mock(return_value={'connected': False})
+    response = client.post('/connect/disconnect', headers={'Origin': 'https://portal.example'},
+                           data={'csrf': 'private-csrf'})
+    assert response.status_code == 200
+    assert 'Подключить acmp.ru' in response.text
+    assert client.cookies[COOKIE] == ticket
+    assert app.state.storage.read_ticket(ticket, 'portal') is not None

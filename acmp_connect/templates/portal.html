@@ -17,7 +17,7 @@
 <main id="main">
 <section class="intro" aria-labelledby="hero-title">
   <div class="eyebrow"><span class="line"></span> ВАШ КОД. НОВЫЕ ВОЗМОЖНОСТИ.</div>
-  <h1 id="hero-title">Решайте задачи.<br><span>Оставайтесь<br>в потоке.</span></h1>
+  <h1 id="hero-title">Решайте задачи.<br><span>Будьте<br>в потоке.</span></h1>
   <p class="lead">Ваш аккаунт acmp.ru и ChatGPT.<br>Одно подключение — больше пространства<br class="desktop-break"> для идей, кода и решений.</p>
   <div class="connection-art" aria-hidden="true"><div class="node"><span class="code-symbol">&lt;/&gt;</span><small>ACMP</small></div><div class="connection-wire"><i></i><span>SECURE LINK</span></div><div class="node node-ai"><span class="spark">✳</span><small>ChatGPT</small></div></div>
   <div class="intro-note"><span>01 / CONNECT</span><span>Создано для вашего следующего решения.</span></div>
@@ -25,51 +25,49 @@
 <section class="workspace" aria-label="Подключение аккаунта">
 <div class="panel">
 {% if error %}
-  <div class="panel-top"><span class="eyebrow">ПОДКЛЮЧЕНИЕ ПРИОСТАНОВЛЕНО</span><span class="status error-status">Нужна проверка</span></div>
-  <div class="state-icon error-icon" aria-hidden="true">!</div>
-  <h2>Давайте попробуем ещё раз</h2><p class="description" role="alert">{{ message }}</p>
-  <a class="button primary" href="{{ retry|default('/connect/login') }}">{% if retry %}Вернуться к подключению{% else %}Повторить вход{% endif %}<span aria-hidden="true">↗</span></a>
-  <p class="micro">Повторный вход создаст новую защищённую сессию.</p>
+  <h2>Не удалось продолжить</h2>
+  <p class="description" role="alert">{{ message }}</p>
+  <a class="button primary" href="{{ retry|default('/connect/login') }}">{% if retry %}Вернуться к подключению{% else %}Повторить вход{% endif %}</a>
 {% elif view == 'deleted' %}
-  <div class="panel-top"><span class="eyebrow">УПРАВЛЕНИЕ ДАННЫМИ</span><span class="status">Завершено</span></div>
-  <div class="state-icon" aria-hidden="true">✓</div><h2>Данные удалены</h2><p class="description" role="status">{{ message }}</p>
-  <a class="button primary" href="/connect">На главную<span aria-hidden="true">↗</span></a>
+  <h2>Данные удалены</h2><p class="description" role="status">{{ message }}</p>
+  <a class="button primary" href="/connect">На главную</a>
 {% elif view == 'account' %}
-  <div class="panel-top"><span class="eyebrow">ВАШЕ ПОДКЛЮЧЕНИЕ</span><span class="status"><span class="dot"></span>{% if account.connected %}Активно{% else %}Auth0 · Вход выполнен{% endif %}</span></div>
-  <ol class="steps" aria-label="Этапы подключения"><li class="done"> <span>✓</span> Вход</li><li class="active"><span>{% if account.connected %}✓{% else %}02{% endif %}</span> Аккаунт ACMP</li></ol>
   {% if account.connected %}
-  <div class="state-icon" aria-hidden="true">✓</div><h2>Всё готово к работе</h2><p class="description">Аккаунт подключён. Вернитесь в ChatGPT, чтобы продолжить работу с задачами.</p>
-  <div class="account-card"><div class="avatar" aria-hidden="true">&lt;/&gt;</div><div><span class="micro">АККАУНТ ACMP</span><strong>Пользователь #{{ account.acmp_user_id }}</strong></div><span class="dot"></span></div>
-  <details class="reconnect"><summary>Подключить другой аккаунт</summary>
-  {% else %}
-  <h2>Знакомый аккаунт.<br>Новые возможности.</h2><p class="description">Подключите acmp.ru к вашей защищённой сессии.</p>
-  {% if account.message %}<p class="notice" role="status">Сессия ACMP недоступна. Подключите аккаунт повторно.</p>{% endif %}
-  {% endif %}
-  <form method="post" action="/connect/account" data-loading="Подключаем аккаунт…">
+  <h2>Аккаунт подключён</h2>
+  <p class="account-identity">Пользователь #{{ account.acmp_user_id }}</p>
+  <form method="post" action="/connect/disconnect" data-loading="Выходим…">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label for="login">Логин acmp.ru</label><input id="login" name="login" maxlength="128" autocomplete="username" placeholder="Ваш логин" required autocapitalize="none" spellcheck="false">
-    <label for="password">Пароль</label><div class="password-field"><input id="password" type="password" name="password" maxlength="512" autocomplete="current-password" placeholder="Пароль от acmp.ru" required><button type="button" class="reveal" aria-controls="password" aria-pressed="false">Показать</button></div>
-    <p class="privacy">Пароль передаётся acmp.ru по HTTPS и не сохраняется в ACMP Connect. Вводите его только здесь, не в чате.</p>
-    <button class="button primary" type="submit"><span>Подключить аккаунт</span><span class="button-arrow" aria-hidden="true">↗</span></button>
-    <p class="form-status micro" role="status" aria-live="polite"></p>
+    <button class="button primary" type="submit">Выйти</button>
+    <p class="form-status" role="status" aria-live="polite"></p>
   </form>
-  {% if account.connected %}</details>{% endif %}
-  <details class="management"><summary>Аккаунт и данные<span aria-hidden="true">＋</span></summary><p class="micro">Отключение завершит локальную сессию ACMP. Удаление также очистит локальные записи. Решения на acmp.ru останутся.</p>
-    <form method="post" action="/connect/disconnect" data-loading="Отключаем…"><input type="hidden" name="csrf" value="{{ csrf }}"><details class="confirm"><summary>Отключить аккаунт</summary><p>Завершить подключение? Для продолжения потребуется снова ввести данные ACMP.</p><button class="button secondary" type="submit">Да, отключить</button></details></form>
-    <form method="post" action="/connect/delete" data-loading="Удаляем данные…"><input type="hidden" name="csrf" value="{{ csrf }}"><details class="confirm danger"><summary>Удалить мои данные</summary><p>Удалить сессию и все ваши локальные записи ACMP Connect? Это действие нельзя отменить.</p><label class="checkbox"><input type="checkbox" required name="confirm_delete" value="yes"> Я подтверждаю удаление данных</label><button class="button destructive" type="submit">Удалить безвозвратно</button></details></form>
-  </details>
+  {% else %}
+  <h2>Подключить acmp.ru</h2>
+  <form method="post" action="/connect/account" data-loading="Подключаем…">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label for="login">Логин</label><input id="login" name="login" maxlength="128" autocomplete="username" placeholder="Ваш логин на acmp.ru" required autocapitalize="none" spellcheck="false">
+    <label for="password">Пароль</label><div class="password-field"><input id="password" type="password" name="password" maxlength="512" autocomplete="current-password" placeholder="Пароль от acmp.ru" required><button type="button" class="reveal" aria-controls="password" aria-pressed="false" aria-label="Показать пароль">Показать</button></div>
+    <p class="privacy">Пароль передаётся acmp.ru по HTTPS и не сохраняется. Не вводите его в чате.</p>
+    <button class="button primary" type="submit">Подключить</button>
+    <p class="form-status" role="status" aria-live="polite">{% if account.message %}Сессия ACMP недоступна. Подключите аккаунт повторно.{% endif %}</p>
+  </form>
+  {% endif %}
+  <button class="text-action" type="button" data-open-delete>Удалить локальные данные</button>
+  <dialog id="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-description">
+    <h2 id="delete-title">Удалить данные?</h2>
+    <p class="description" id="delete-description">Сессия ACMP и ваши локальные записи ACMP Connect будут удалены безвозвратно. Аккаунт и решения на acmp.ru сохранятся.</p>
+    <form method="post" action="/connect/delete" data-loading="Удаляем…">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="checkbox"><input type="checkbox" required name="confirm_delete" value="yes"> Подтверждаю удаление локальных данных</label>
+      <div class="dialog-actions"><button class="button secondary" type="button" data-close-delete autofocus>Отмена</button><button class="button destructive" type="submit">Удалить</button></div>
+      <p class="form-status" role="status" aria-live="polite"></p>
+    </form>
+  </dialog>
 {% else %}
-  <div class="panel-top"><span class="eyebrow">НАЧНИТЕ ЗДЕСЬ</span><span class="version">PORTAL / 01</span></div>
-  <ol class="steps" aria-label="Этапы подключения"><li class="active" aria-current="step"><span>01</span> Вход</li><li><span>02</span> Аккаунт ACMP</li></ol>
-  <div class="welcome-mark" aria-hidden="true"><img src="/connect/assets/mark.svg" width="64" height="64" alt=""></div>
-  <h2>Ваш следующий<br>шаг — подключение.</h2>
-  <p class="description">Войдите с той же учётной записью, которую используете для плагина в ChatGPT.</p>
-  <a class="button primary" href="/connect/login">Продолжить с Auth0<span aria-hidden="true">↗</span></a>
-  <p class="micro centered">Защищённый вход · Затем привязка acmp.ru</p>
-  <div class="trust-list"><div><span class="trust-symbol" aria-hidden="true">◇</span><p><strong>Ваш пароль остаётся вашим</strong><span>Не сохраняем пароль от acmp.ru.</span></p></div><div><span class="trust-symbol" aria-hidden="true">⌁</span><p><strong>Контроль в ваших руках</strong><span>Отключение и удаление данных в любой момент.</span></p></div></div>
+  <h2>Подключение начинается здесь</h2>
+  <p class="description">Войдите с учётной записью, которую используете для плагина в ChatGPT. Затем подключите acmp.ru.</p>
+  <a class="button primary" href="/connect/login">Продолжить с Auth0</a>
 {% endif %}
 </div>
-<p class="panel-caption"><span aria-hidden="true">◈</span> Приватное подключение. Без лишних посредников.</p>
 </section>
 </main>
 <footer><span>ACMP Connect <span class="footer-divider">/</span> Независимый проект, не официальное приложение acmp.ru.</span><span>CODE. CONNECT. CONTINUE.<span class="footer-square" aria-hidden="true"></span></span></footer>

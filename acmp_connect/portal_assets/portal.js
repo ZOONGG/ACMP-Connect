@@ -40,7 +40,7 @@ window.addEventListener('pageshow', () => {
   const password = document.getElementById('password');
   if (password) password.type = 'password';
   const reveal = document.querySelector('.reveal');
-  if (reveal) { reveal.textContent = 'Показать'; reveal.setAttribute('aria-pressed', 'false'); }
+  if (reveal) { reveal.textContent = 'Показать'; reveal.setAttribute('aria-pressed', 'false'); reveal.setAttribute('aria-label', 'Показать пароль'); }
 });
 const reveal = document.querySelector('.reveal');
 if (reveal) reveal.addEventListener('click', () => {
@@ -49,4 +49,15 @@ if (reveal) reveal.addEventListener('click', () => {
   password.type = visible ? 'text' : 'password';
   reveal.textContent = visible ? 'Скрыть' : 'Показать';
   reveal.setAttribute('aria-pressed', String(visible));
+  reveal.setAttribute('aria-label', visible ? 'Скрыть пароль' : 'Показать пароль');
 });
+
+const deleteDialog = document.getElementById('delete-dialog');
+const openDelete = document.querySelector('[data-open-delete]');
+if (deleteDialog && openDelete) {
+  openDelete.addEventListener('click', () => {
+    deleteDialog.querySelector('form').reset();
+    deleteDialog.showModal();
+  });
+  document.querySelector('[data-close-delete]').addEventListener('click', () => deleteDialog.close());
+}
