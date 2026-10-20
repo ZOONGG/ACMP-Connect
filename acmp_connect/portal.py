@@ -145,6 +145,17 @@ class Portal:
         if not session:
             return page('<p>Sign in first.</p>', 401)
         if request.headers.get('origin') != self.settings.public_url:
+            referer = request.headers.get('referer', '')
+            try:
+                parsed = urllib.parse.urlsplit(referer)
+                referer_matches = parsed.scheme + '://' + parsed.netloc == self.settings.public_url
+            except ValueError:
+                referer_matches = False
+            logger.warning(
+                'portal_origin_rejected origin_present=%s origin_matches=%s '
+                'referer_present=%s referer_matches=%s fetch_site_present=%s fetch_site_same_origin=%s',
+                'origin' in request.headers, False, 'referer' in request.headers, referer_matches,
+                'sec-fetch-site' in request.headers, request.headers.get('sec-fetch-site') == 'same-origin')
             return page('<p>Origin check failed.</p>', 403)
         form = await request.form(max_fields=5, max_files=0, max_part_size=8192)
         if not hmac.compare_digest(str(form.get('csrf', '')), session['csrf']):

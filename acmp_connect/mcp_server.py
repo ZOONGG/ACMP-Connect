@@ -44,8 +44,12 @@ class SecurityHeaders:
             return messages.pop(0) if messages else await receive()
         async def safe_send(message):
             if message['type'] == 'http.response.start':
+                # Native form POSTs under no-referrer can send Origin: null.
+                # Only the form page needs same-origin referrers; keep OAuth
+                # callback URLs (which contain a code/state) under no-referrer.
+                referrer_policy = b'same-origin' if scope['path'] == '/connect' else b'no-referrer'
                 message['headers'] += [(b'cache-control', b'no-store'), (b'x-content-type-options', b'nosniff'),
-                                       (b'referrer-policy', b'no-referrer'), (b'x-frame-options', b'DENY'),
+                                       (b'referrer-policy', referrer_policy), (b'x-frame-options', b'DENY'),
                                        (b'content-security-policy', b"default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"),
                                        (b'strict-transport-security', b'max-age=31536000')]
             await send(message)
