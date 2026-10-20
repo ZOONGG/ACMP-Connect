@@ -19,11 +19,11 @@
   <div class="eyebrow"><span class="line"></span> ВАШ КОД. НОВЫЕ ВОЗМОЖНОСТИ.</div>
   <h1 id="hero-title">Решайте задачи.<br><span>Будьте<br>в потоке.</span></h1>
   <p class="lead">Ваш аккаунт acmp.ru и ChatGPT.<br>Одно подключение — больше пространства<br class="desktop-break"> для идей, кода и решений.</p>
-  <div class="connection-art" aria-hidden="true"><div class="node"><span class="code-symbol">&lt;/&gt;</span><small>ACMP</small></div><div class="connection-wire"><i></i><span>SECURE LINK</span></div><div class="node node-ai"><span class="spark">✳</span><small>ChatGPT</small></div></div>
+  <div class="connection-art" aria-hidden="true"><div class="node"><img class="acmp-symbol" src="/connect/assets/mark.svg" width="32" height="32" alt=""><small>ACMP</small></div><div class="connection-wire"><i></i><span>SECURE LINK</span></div><div class="node node-ai"><span class="spark">✳</span><small>ChatGPT</small></div></div>
   <div class="intro-note"><span>01 / CONNECT</span><span>Создано для вашего следующего решения.</span></div>
 </section>
 <section class="workspace" aria-label="Подключение аккаунта">
-<div class="panel">
+<div class="panel{% if not error and view == 'account' and account.connected %} panel-connected{% endif %}">
 {% if error %}
   <h2>Не удалось продолжить</h2>
   <p class="description" role="alert">{{ message }}</p>
@@ -35,6 +35,7 @@
   {% if account.connected %}
   <h2>Аккаунт подключён</h2>
   <p class="account-identity">Пользователь #{{ account.acmp_user_id }}</p>
+  <p class="connected-description">Вернитесь в ChatGPT, чтобы продолжить работу с задачами.</p>
   <form method="post" action="/connect/disconnect" data-loading="Выходим…">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <button class="button primary" type="submit">Выйти</button>

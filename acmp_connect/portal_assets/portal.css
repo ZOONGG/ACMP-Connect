@@ -208,8 +208,8 @@ h1>span {
   line-height:1
 }
 .connection-wire {
-  height:1px;
-  background:linear-gradient(90deg,#4b83b6,#86f4e2);
+  height:2px;
+  background:#385b70;
   flex:1;
   position:relative;
   margin:0 9px
@@ -228,11 +228,11 @@ h1>span {
 }
 .connection-wire i {
   position:absolute;
-  top:-2px;
+  top:0;
   width:28px;
-  height:4px;
+  height:2px;
   background:#adfff1;
-  filter:blur(2px);
+  filter:none;
   animation:signal 3s ease-in-out infinite
 }
 .connection-wire>span {
@@ -495,8 +495,8 @@ html { scrollbar-gutter:stable }
 main { grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) }
 .intro,.workspace { animation:fade-in .35s both }
 .panel {
-  min-height:510px; padding:42px 36px 30px; border:1px solid #2a3541;
-  border-radius:16px; background:#111820; display:flex; flex-direction:column;
+  min-height:0; padding:36px; border:1px solid #2a3541;
+  border-radius:16px; background:linear-gradient(135deg,#15232e,#101820 65%); display:flex; flex-direction:column; width:100%; max-width:480px;
 }
 h2 { margin:0 0 28px; font-size:30px; line-height:1.25; letter-spacing:-1px; font-weight:600 }
 .description { margin:0 0 30px; color:var(--muted); font-size:14px; line-height:1.8; overflow-wrap:anywhere }
@@ -522,14 +522,14 @@ input:-moz-autofill { background:#0c121a; color:#f0f5fa; box-shadow:0 0 0 1000px
 .reveal { position:absolute; right:6px; top:3px; height:44px; min-width:80px; border:0; border-radius:5px; background:transparent; color:#afc7d5; font-size:11px }
 .privacy { margin:16px 0 24px; color:#92a3b5; font-size:11px; line-height:1.7 }
 .button { width:100%; min-height:50px; padding:13px 16px; border:1px solid transparent; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; transition:background .18s,box-shadow .18s; line-height:1.5 }
-.primary { color:#09202a; background:#8ce7e3 }
+.primary { color:#09202a; background:linear-gradient(105deg,#96eee3,#83cbf3) }
 .primary:hover { background:#adf2ec; box-shadow:0 0 22px #80f3e512 }
 .button:active { filter:brightness(.94) }
 .button:disabled { cursor:wait; opacity:.65 }
 .secondary { background:transparent; border-color:#364250; color:var(--text) }
 .destructive { background:#eeb3b0; color:#301312 }
 .form-status { min-height:40px; margin:8px 0 0; color:#b8c8d8; font-size:11px; line-height:1.6 }
-.text-action { align-self:flex-start; margin-top:auto; padding:12px 0 0; border:0; background:transparent; color:#91a0af; font-size:11px; text-decoration:underline; text-underline-offset:4px }
+.text-action { align-self:flex-start; margin-top:4px; padding:12px 0 0; border:0; background:transparent; color:#91a0af; font-size:11px; text-decoration:underline; text-underline-offset:4px }
 .text-action:hover { color:#d0dce7 }
 dialog { width:min(440px,calc(100% - 32px)); max-height:calc(100svh - 32px); padding:28px; background:#111820; color:var(--text); border:1px solid #364250; border-radius:14px }
 dialog::backdrop { background:#05090dcc }
@@ -538,7 +538,19 @@ dialog h2 { font-size:25px; margin-bottom:18px }
 .checkbox input { width:18px; height:18px; accent-color:var(--cyan); flex-shrink:0 }
 .dialog-actions { display:flex; gap:12px }
 @keyframes fade-in { from { opacity:.4 } to { opacity:1 } }
-@media(max-width:1100px) { .panel { padding:32px 26px; min-height:550px } h2 { font-size:27px } }
-@media(max-width:800px) { main { grid-template-columns:minmax(0,1fr) } .panel { padding:30px 26px; min-height:550px } }
+@media(max-width:1100px) { .panel { padding:32px 26px } h2 { font-size:27px } }
+@media(max-width:800px) { main { grid-template-columns:minmax(0,1fr) } .panel { padding:30px 26px } }
 @media(max-width:390px) { .panel { padding:28px 20px } h2 { font-size:25px } }
 @media(prefers-reduced-motion:reduce) { *,*:before,*:after { animation:none!important; transition:none!important } }
+
+/* The workspace reserves form space; the visible surface fits its content. */
+.workspace { min-height:550px; display:flex; align-items:center; justify-content:center }
+.panel-connected h2 { max-width:320px; font-size:42px; line-height:1.12; letter-spacing:-1.5px; margin-bottom:20px; background:linear-gradient(110deg,#8cf2e9,#75bff2 75%,#768eff); background-clip:text; color:transparent }
+.account-identity { margin-bottom:14px; color:#d4e1eb; font-size:16px }
+.connected-description { max-width:330px; margin:0 0 28px; color:var(--muted); font-size:14px; line-height:1.8 }
+.panel-connected .form-status { min-height:22px }
+.acmp-symbol { display:block; width:32px; height:32px }
+.connection-wire { overflow:visible }
+.connection-wire i { box-shadow:none; border-radius:0 }
+@media(max-width:800px) { .workspace { min-height:550px } .panel-connected h2 { font-size:38px } .acmp-symbol { width:25px; height:25px } }
+@media(max-width:390px) { .panel-connected h2 { font-size:34px } }
