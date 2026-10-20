@@ -103,7 +103,12 @@ foreach ($entry in @(
             infinite_idle_token_lifetime=$false; leeway=3
         }
         if ($ChatGPTCallback) { $body.callbacks = @($ChatGPTCallback) }
-    } elseif ($Origin) { $body.callbacks = @("$Origin/connect/callback") }
+    } else {
+        # API signing_alg does not configure Portal ID tokens. Auth0 clients
+        # created without an explicit alg can issue HS256 tokens without kid.
+        $body.jwt_configuration = @{alg='RS256'}
+        if ($Origin) { $body.callbacks = @("$Origin/connect/callback") }
+    }
     if ($matches.Count) {
         $client = Api patch "clients/$($matches[0].client_id)" $body
     } else {

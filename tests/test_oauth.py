@@ -87,6 +87,23 @@ async def test_auth0_audience_array_and_authorized_party(settings):
             assert await verifier.verify_token(encode({**claims, 'aud': audience})) is None
 
 
+def test_portal_requires_rs256_id_token_with_jwks_key(settings):
+    with provider(settings) as (s, key, _):
+        verifier = JWTVerifier(s)
+        now = int(time.time())
+        claims = {'iss': s.issuer, 'sub': 'portal-user', 'aud': s.portal_client_id,
+                  'iat': now, 'exp': now + 300, 'nonce': 'private-test-nonce'}
+        # Auth0's unset client alg produces HS256 with no kid. API RS256
+        # configuration does not change the application's ID token algorithm.
+        legacy = jwt.encode(claims, 'x' * 64, algorithm='HS256')
+        with pytest.raises(jwt.PyJWKClientError):
+            verifier.decode(legacy, s.portal_client_id)
+        corrected = jwt.encode(claims, key, algorithm='RS256', headers={'kid': 'test-key'})
+        assert verifier.decode(corrected, s.portal_client_id) == claims
+        with pytest.raises(jwt.InvalidAudienceError):
+            verifier.decode(corrected, s.resource)
+
+
 def test_production_https_discovery_challenge_and_read_without_acmp(settings):
     from mcp.server.auth.provider import AccessToken
     s = replace(settings, public_url='https://private-acmp.up.railway.app', dev=False)
