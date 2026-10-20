@@ -62,14 +62,27 @@ class Service:
         page = client.request(f'/index.asp?main=task&id_task={task}')
         if authenticated_user(page) != user:
             raise ACMPError('ACMP session expired.')
-        compiler = language(page, '.c' if lang == 'C' else '.cpp')
+        compiler_fallback = False
+        try:
+            compiler = language(page, '.c' if lang == 'C' else '.cpp')
+        except ACMPError:
+            if lang != 'C':
+                raise
+            compiler = language(page, '.c', allow_cpp_fallback=True)
+            compiler_fallback = True
         before = max((r['id'] for r in client.submissions(user, task)), default=0)
         replay = self.storage.reserve(subject, key, user, fingerprint, task, self.settings.submission_interval)
         if replay is not None:
             return replay
         result = {'operation_key': key, 'state': 'uncertain', 'id': None, 'task': task,
                   'baseline_id': before, 'compiler': compiler, 'compiler_id': compiler,
+                  'requested_language': lang, 'compiler_language': 'C++' if compiler_fallback else lang,
+                  'compiler_fallback': compiler_fallback,
                   'message': 'Upload may have been received. Check submissions; never automatically resubmit.'}
+        if compiler_fallback:
+            result['compiler_warning'] = (
+                'C source is sent unchanged to a GNU C++ compiler for judging; '
+                'only C/C++-compatible constructs are supported.')
         # Store the baseline BEFORE POST so a crash remains reconcilable.
         self.storage.finish(subject, key, {**result, 'state': 'reserved'})
         try:

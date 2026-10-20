@@ -105,7 +105,7 @@ def create_app(settings=None, verifier=None, client_factory=None):
     async def get_account_status() -> AccountStatus:
         return await run(READ, service.account_status)
 
-    @register('submit_solution', 'Send one C or C++ solution ONLY after the user explicitly requests submission. Create one unique idempotency_key per explicit action and reuse it on retries. Never retry with a new key after an uncertain result. C is rejected if ACMP offers no C compiler. This changes the account on acmp.ru.', WRITE, True)
+    @register('submit_solution', 'Send one C or C++ solution ONLY after the user explicitly requests submission. Create one unique idempotency_key per explicit action and reuse it on retries. Never retry with a new key after an uncertain result. C prefers a native C compiler; if unavailable, the unchanged source is submitted with an available GNU C++ compiler. When generating C code, use only C/C++-compatible constructs for this fallback; source is never automatically rewritten. The result explicitly reports the fallback. This changes the account on acmp.ru.', WRITE, True)
     async def submit_solution(problem_id: ProblemID, language: Literal['C', 'C++'],
                               source: Annotated[str, Field(min_length=1, max_length=131072)],
                               idempotency_key: Annotated[str, Field(pattern=r'^[A-Za-z0-9_-]{16,128}$')]) -> Upload:

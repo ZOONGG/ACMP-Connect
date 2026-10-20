@@ -104,6 +104,61 @@ def test_submission_and_idempotency(service,lang,compiler):
         service.submit('alice',1,lang,'int main(){}',KEY+'2')
 
 
+@pytest.mark.parametrize('lang,options,compiler,fallback', [
+    ('C', '<option value=cpp>MinGW GNU C++</option><option value=c>GNU C</option>', 'c', False),
+    ('C', '<option value=cpp>MinGW GNU C++</option>', 'cpp', True),
+    ('C++', '<option value=c>GNU C</option><option value=cpp>MinGW GNU C++</option><option value=vc>Visual C++</option>', 'cpp', False),
+])
+def test_compiler_selection_and_unchanged_source(service, lang, options, compiler, fallback):
+    page = PAGE[:PAGE.index('<select')] + '<select name=lang>' + options + '</select>'
+    source = '#include <stdio.h>\nint main(void) { puts("test"); return 0; }\n'
+    with patch.object(FakeClient, 'request', return_value=page), \
+         patch.object(FakeClient, 'upload', autospec=True, side_effect=FakeClient.upload) as upload:
+        result = service.submit('alice', 1, lang, source, KEY)
+        assert result['state'] == 'submitted'
+        assert result['compiler_id'] == compiler
+        assert result['compiler_fallback'] is fallback
+        assert result['requested_language'] == lang
+        assert result['compiler_language'] == ('C++' if fallback else lang)
+        if fallback:
+            assert 'unchanged' in result['compiler_warning']
+            assert 'C/C++-compatible' in result['compiler_warning']
+        else:
+            assert 'compiler_warning' not in result
+        assert upload.call_args.args[1:] == (1, compiler, source.encode('windows-1251'))
+        assert service.submit('alice', 1, lang, source, KEY) == result
+        assert upload.call_count == 1
+
+
+@pytest.mark.parametrize('lang,options', [
+    ('C', '<option value=vc>Visual C++</option>'),
+    ('C', '<option value=cpp>C++</option>'),
+    ('C', '<option value=py>Python</option>'),
+    ('C++', '<option value=c>GNU C</option>'),
+])
+def test_no_suitable_compiler_never_uploads(service, lang, options):
+    page = PAGE[:PAGE.index('<select')] + '<select name=lang>' + options + '</select>'
+    with patch.object(FakeClient, 'request', return_value=page):
+        with pytest.raises(ACMPError, match='компилятора'):
+            service.submit('alice', 1, lang, 'int main(void) {}', KEY)
+    assert FakeClient.uploads == 0
+    assert service.storage.operation('alice', KEY) is None
+
+
+def test_fallback_uncertain_replay_keeps_warning(service):
+    page = PAGE.replace('<option value=c>GNU C 14</option>', '')
+    FakeClient.uncertain = True
+    with patch.object(FakeClient, 'request', return_value=page):
+        result = service.submit('alice', 1, 'C', 'int main(void) {}', KEY)
+    assert result['state'] == 'uncertain'
+    assert result['compiler_fallback'] is True
+    assert 'C/C++-compatible' in result['compiler_warning']
+    assert service.submit('alice', 1, 'C', 'int main(void) {}', KEY) == result
+    assert FakeClient.uploads == 1
+    FakeClient.rows = [submission()]
+    assert service.reconcile('alice', KEY, 101)['compiler_warning'] == result['compiler_warning']
+
+
 def test_uncertain_is_durable_and_never_retried(service):
     FakeClient.uncertain = True
     result = service.submit('alice',1,'C++','int main(){}',KEY)
@@ -238,13 +293,6 @@ def test_redirect_origin_and_scheme():
             SafeRedirect().redirect_request(req,None,302,'redirect',{},target)
     redirected=SafeRedirect().redirect_request(req,None,302,'redirect',{},'https://acmp.ru/index.asp')
     assert redirected.data is None
-
-
-def test_native_c_unavailable_never_uploads(service):
-    with patch.object(FakeClient,'request',return_value=PAGE.replace('<option value=c>GNU C 14</option>','')):
-        with pytest.raises(ACMPError,match='компилятора'):
-            service.submit('alice',1,'C','int main(){}',KEY)
-    assert FakeClient.uploads==0
 
 
 @pytest.mark.parametrize('task,lang,source,key',[(0,'C++','code',KEY),(True,'C++','code',KEY),

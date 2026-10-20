@@ -220,12 +220,16 @@ class Options(HTMLParser):
             self.current = None
 
 
-def language(page, suffix):
+def language(page, suffix, *, allow_cpp_fallback=False):
     parser = Options()
     parser.feed(page)
     candidates = [(v, label) for v, label in parser.options if v and
                   (('c++' in label.lower() or 'g++' in label.lower()) if suffix == '.cpp'
                    else bool(re.search(r'\bC\b(?!\+)', label, re.I)) and 'c++' not in label.lower())]
+    if not candidates and suffix == '.c' and allow_cpp_fallback:
+        candidates = [(v, label) for v, label in parser.options if v and
+                      re.search(r'c\+\+|g\+\+', label, re.I) and
+                      re.search(r'GNU|G\+\+', label, re.I)]
     if not candidates:
         raise ACMPError(f"На странице нет компилятора для {suffix}.")
     preferred = [item for item in candidates if re.search(r'GNU|G\+\+', item[1], re.I)]
